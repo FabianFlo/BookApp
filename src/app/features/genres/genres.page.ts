@@ -1,28 +1,27 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { ApiService } from 'src/app/core/services/api.service';
+import { DatabaseService } from 'src/app/core/services/database.service';
 import { Book } from 'src/app/core/models/book.model';
 import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-genres',
   standalone: true,
-  imports: [IonicModule, CommonModule, RouterModule ],
+  imports: [IonicModule, CommonModule, RouterModule],
   templateUrl: './genres.page.html',
   styleUrls: ['./genres.page.scss'],
 })
-export class GenresPage {
-
+export class GenresPage implements OnInit {
   selectedGenre: string | null = null;
-
   books: Book[] = [];
-
   loading = false;
   error = false;
   noResults = false;
+  isOffline = false;
+  noCache = false;
 
-  // Etiquetas para mostrar nombre correcto en el título
   genreLabels: Record<string, string> = {
     fantasy: 'Fantasía',
     science_fiction: 'Sci-fi',
@@ -30,85 +29,100 @@ export class GenresPage {
     history: 'Historia'
   };
 
-  // PAGINACIÓN
   currentPage = 1;
-  limit = 10;
+  limit = 5;
   totalPages = 0;
 
-  constructor(private apiService: ApiService) {}
+  constructor(
+    private apiService: ApiService,
+    private db: DatabaseService
+  ) {}
 
-  // Título dinámico
-  get currentGenreLabel(): string {
-    return this.selectedGenre
-      ? this.genreLabels[this.selectedGenre]
-      : 'Géneros';
+  async ngOnInit() {
+    await this.db.init();
+    this.isOffline = !navigator.onLine;
+    window.addEventListener('online',  () => { this.isOffline = false; });
+    window.addEventListener('offline', () => { this.isOffline = true; });
   }
 
-  // Seleccionar género
+  get currentGenreLabel(): string {
+    return this.selectedGenre ? this.genreLabels[this.selectedGenre] : 'Géneros';
+  }
+
   selectGenre(subject: string) {
     this.selectedGenre = subject;
     this.currentPage = 1;
     this.loadBooks();
   }
 
-  // Volver atrás
   resetGenres() {
     this.selectedGenre = null;
     this.books = [];
     this.error = false;
     this.loading = false;
     this.noResults = false;
+    this.noCache = false;
     this.currentPage = 1;
   }
 
-  // Cargar libros según página actual
   loadBooks() {
     if (!this.selectedGenre) return;
-
     this.loading = true;
     this.error = false;
     this.noResults = false;
+    this.noCache = false;
 
-    const offset = (this.currentPage - 1) * this.limit;
-
-    this.apiService
-      .getBooksByGenre(this.selectedGenre, this.limit, offset)
-      .subscribe({
-        next: (response: any) => {
-
-          const works = response.works || response;
-
-          if (!works || works.length === 0) {
-            this.noResults = true;
-          }
-
+    if (navigator.onLine) {
+      const offset = (this.currentPage - 1) * this.limit;
+      this.apiService.getBooksByGenre(this.selectedGenre, this.limit, offset).subscribe({
+        next: async (response: any) => {
+          const works = response.works || [];
           this.books = works;
-
-          const total = response.work_count || 200; // fallback si no viene
+          this.noResults = works.length === 0;
+          const total = response.work_count || 200;
           this.totalPages = Math.ceil(total / this.limit);
-
           this.loading = false;
+          // Guardar en SQLite
+          await this.db.upsertCachedBooks(
+            this.selectedGenre!,
+            this.currentPage,
+            JSON.stringify({ works, work_count: total })
+          );
         },
-        error: () => {
-          this.error = true;
-          this.loading = false;
+        error: async () => {
+          await this.loadFromCache();
         }
       });
+    } else {
+      this.loadFromCache();
+    }
   }
 
-  // Cambiar página
+  private async loadFromCache() {
+    const cached = await this.db.getCachedBooks(this.selectedGenre!, this.currentPage);
+    if (cached) {
+      const data = JSON.parse(cached);
+      this.books = data.works ?? [];
+      this.totalPages = Math.ceil((data.work_count ?? 200) / this.limit);
+      this.noResults = this.books.length === 0;
+    } else {
+      this.books = [];
+      this.noCache = true;
+      this.noResults = true;
+    }
+    this.loading = false;
+  }
+
   goToPage(page: number) {
     if (page < 1 || page > this.totalPages) return;
     this.currentPage = page;
     this.loadBooks();
   }
 
-  // Mostrar máximo 5 páginas visibles
   get visiblePages(): number[] {
     const max = 5;
     const start = Math.max(1, this.currentPage - 2);
     const end = Math.min(this.totalPages, start + max - 1);
-
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }
 }
