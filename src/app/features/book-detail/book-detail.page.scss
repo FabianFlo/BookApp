@@ -1,0 +1,105 @@
+.detail-content {
+    --background: linear-gradient(180deg, #f4f7fb 0%, #eef2f7 100%);
+    padding: 20px;
+}
+
+/* CONTENEDOR GENERAL */
+.detail-wrapper {
+    text-align: center;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+/* PORTADA */
+.cover-wrapper {
+    position: relative;
+    width: 190px;
+    height: 280px;
+    margin: 0 auto 24px;
+}
+
+.cover-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 16px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.cover-wrapper img.loaded {
+    opacity: 1;
+}
+
+/* Skeleton */
+.cover-skeleton {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 16px;
+    background: linear-gradient(90deg,
+            #e2e8f0 25%,
+            #f1f5f9 37%,
+            #e2e8f0 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 100% 0;
+    }
+
+    100% {
+        background-position: 0 0;
+    }
+}
+
+/* TÍTULO */
+.book-title {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    line-height: 1.3;
+    color: #111827;
+}
+
+/* METADATA */
+.book-meta-group {
+    margin-bottom: 18px;
+}
+
+.book-meta {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 4px 0;
+}
+
+/* DESCRIPCIÓN */
+.book-description {
+    text-align: left;
+    margin-top: 20px;
+    background: white;
+    padding: 18px;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+
+.book-description h3 {
+    margin-bottom: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.book-description p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #374151;
+}
+
+ion-toolbar {
+    --background: #3f494c;
+    --color: white;
+}

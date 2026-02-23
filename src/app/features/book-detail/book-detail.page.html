@@ -1,0 +1,63 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tabs/genres"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Detalle</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="detail-content">
+
+  <div class="center-loader" *ngIf="loading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <div class="loader-text">Cargando detalle…</div>
+  </div>
+
+  <div *ngIf="error" class="state-box error">
+    <ion-icon name="alert-circle-outline"></ion-icon>
+    <div>
+      <h3>Error</h3>
+      <p>No se pudo cargar el detalle del libro.</p>
+    </div>
+  </div>
+
+  <div *ngIf="!loading && !error && book" class="detail-wrapper">
+
+    <!-- Portada -->
+    <div style="margin-top: 5%;" class="cover-wrapper" *ngIf="coverUrl">
+      <div class="cover-skeleton" *ngIf="!imageLoaded"></div>
+
+      <img
+        [src]="coverUrl"
+        alt="Portada"
+        loading="lazy"
+        (load)="onImageLoad()"
+        [class.loaded]="imageLoaded"
+      />
+    </div>
+
+    <h1 class="book-title">{{ book.title }}</h1>
+
+    <!-- Autores reales -->
+    <div class="book-meta-group">
+      <div class="book-meta" *ngIf="authorNames.length > 0">
+        <strong>Autor(es):</strong> {{ authorNames.join(', ') }}
+      </div>
+
+      <div class="book-meta">
+        <strong>Publicado:</strong> {{ publishInfo }}
+      </div>
+    </div>
+
+    <!-- Descripción -->
+    <div class="book-description">
+      <h3>Descripción</h3>
+      <p>{{ description }}</p>
+    </div>
+
+    <!-- (Mañana) Agregar a listas + evitar duplicados -->
+    <!-- Aquí irá el botón y lógica con SQLite -->
+  </div>
+
+</ion-content>

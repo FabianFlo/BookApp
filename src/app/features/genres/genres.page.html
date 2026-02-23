@@ -1,0 +1,119 @@
+<ion-header class="genres-header">
+  <ion-toolbar>
+    <ion-buttons slot="start" *ngIf="selectedGenre">
+      <ion-button fill="clear" class="back-btn" (click)="resetGenres()">
+        <ion-icon name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+
+    <ion-title>
+      <div class="title-wrap">
+        <div class="title-main">
+          {{ currentGenreLabel }}
+        </div>
+
+
+      </div>
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="genres-content">
+
+  <!-- GRID DE GÉNEROS -->
+  <div *ngIf="!selectedGenre" class="genre-grid">
+
+    <button type="button" class="genre-card fantasy" (click)="selectGenre('fantasy')">
+      <div class="genre-icon">
+        <ion-icon name="sparkles-outline"></ion-icon>
+      </div>
+      <h2>Fantasía</h2>
+    </button>
+
+    <button type="button" class="genre-card scifi" (click)="selectGenre('science_fiction')">
+      <div class="genre-icon">
+        <ion-icon name="planet-outline"></ion-icon>
+      </div>
+      <h2>Sci-fi</h2>
+    </button>
+
+    <button type="button" class="genre-card romance" (click)="selectGenre('romance')">
+      <div class="genre-icon">
+        <ion-icon name="heart-outline"></ion-icon>
+      </div>
+      <h2>Romance</h2>
+    </button>
+
+    <button type="button" class="genre-card history" (click)="selectGenre('history')">
+      <div class="genre-icon">
+        <ion-icon name="library-outline"></ion-icon>
+      </div>
+      <h2>Historia</h2>
+    </button>
+
+  </div>
+
+  <!-- LIBROS -->
+  <div *ngIf="selectedGenre" class="books-area">
+
+    <!-- Spinner centrado -->
+    <div class="center-loader" *ngIf="loading">
+      <ion-spinner name="crescent"></ion-spinner>
+      <div class="loader-text">Cargando libros…</div>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="error" class="state-box error">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <div>
+        <h3>Ocurrió un problema</h3>
+        <p>No pudimos cargar los libros. Intenta nuevamente.</p>
+      </div>
+    </div>
+
+    <!-- Sin resultados -->
+    <div *ngIf="noResults && !loading && !error" class="state-box empty">
+      <ion-icon name="search-outline"></ion-icon>
+      <div>
+        <h3>Sin resultados</h3>
+        <p>No encontramos libros para este género.</p>
+      </div>
+    </div>
+
+    <!-- Lista -->
+    <div *ngIf="!loading && !error && !noResults">
+
+      <ion-card class="book-card" *ngFor="let book of books" [routerLink]="['/book', book.key]">
+        <ion-card-content>
+          <h3 class="book-title">{{ book.title }}</h3>
+          <p class="book-meta" *ngIf="book.first_publish_year">
+            Año: {{ book.first_publish_year }}
+          </p>
+        </ion-card-content>
+      </ion-card>
+
+      <!-- PAGINACIÓN -->
+      <div class="pagination-wrapper" *ngIf="totalPages > 1">
+
+        <button class="page-arrow" [disabled]="currentPage === 1" (click)="goToPage(currentPage - 1)">
+          ‹
+        </button>
+
+        <div class="pages-container">
+          <button *ngFor="let page of visiblePages" class="page-number" [class.active]="page === currentPage"
+            (click)="goToPage(page)">
+            {{ page }}
+          </button>
+        </div>
+
+        <button class="page-arrow" [disabled]="currentPage === totalPages" (click)="goToPage(currentPage + 1)">
+          ›
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</ion-content>
