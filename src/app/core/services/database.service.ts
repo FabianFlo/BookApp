@@ -112,6 +112,15 @@ export class DatabaseService {
         UNIQUE(list_id, work_key)
       );
     `);
+        await this.db.execute(`
+  CREATE TABLE IF NOT EXISTS cached_search (
+    query TEXT NOT NULL,
+    page INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (query, page)
+  );
+`);
     }
 
     // ─── CACHE GÉNEROS ────────────────────────────────────────────────────────
@@ -287,4 +296,75 @@ export class DatabaseService {
         );
         return Number((res.values?.[0] as any)?.c ?? 0) > 0;
     }
+
+    // ─── CACHE BÚSQUEDA ─────────────────────────────────────────────
+
+async upsertSearchCache(query: string, page: number, data: string): Promise<void> {
+    await this.ensureReady();
+
+    const normalizedQuery = query.trim().toLowerCase();
+    const now = Date.now();
+
+    await this.db.run(
+        `
+        INSERT INTO cached_search (query, page, data, created_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(query, page) DO UPDATE SET
+          data = excluded.data,
+          created_at = excluded.created_at;
+        `,
+        [normalizedQuery, page, data, now]
+    );
+}
+
+async getSearchCache(query: string, page: number): Promise<string | null> {
+    await this.ensureReady();
+
+    const normalizedQuery = query.trim().toLowerCase();
+
+    const res = await this.db.query(
+        `SELECT data FROM cached_search WHERE query = ? AND page = ? LIMIT 1`,
+        [normalizedQuery, page]
+    );
+
+    return (res.values?.[0] as any)?.data ?? null;
+}
+
+// 🔥 BÚSQUEDA POR SIMILITUD OFFLINE
+async searchOfflineSimilar(query: string): Promise<any[]> {
+    await this.ensureReady();
+
+    const normalizedQuery = query.trim().toLowerCase();
+
+    const res = await this.db.query(
+        `
+        SELECT data
+        FROM cached_search
+        WHERE query LIKE ?
+        ORDER BY created_at DESC
+        `,
+        [`%${normalizedQuery}%`]
+    );
+
+    if (!res.values?.length) return [];
+
+    const merged: any[] = [];
+
+    for (const row of res.values) {
+        try {
+            const parsed = JSON.parse(row.data);
+            if (Array.isArray(parsed)) {
+                merged.push(...parsed);
+            }
+        } catch { }
+    }
+
+    // eliminar duplicados por key
+    const uniqueMap = new Map();
+    merged.forEach(book => {
+        if (book.key) uniqueMap.set(book.key, book);
+    });
+
+    return Array.from(uniqueMap.values());
+}
 }

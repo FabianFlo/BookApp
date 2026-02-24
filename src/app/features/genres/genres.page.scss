@@ -162,3 +162,26 @@ ion-card {
     opacity: 0.3;
     cursor: default;
 }
+
+.books-list {
+    margin-top: 8px;
+}
+
+.book-title {
+    font-size: 16px;
+}
+
+.book-author {
+    font-size: 14px;
+    color: var(--ion-color-medium);
+}
+
+.book-year {
+    font-size: 13px;
+    color: var(--ion-color-medium-shade);
+}
+
+ion-thumbnail img {
+    border-radius: 6px;
+    object-fit: cover;
+}

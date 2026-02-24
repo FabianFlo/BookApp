@@ -1,13 +1,40 @@
-<ion-header [translucent]="true">
+<ion-header>
   <ion-toolbar>
-    <ion-title>search</ion-title>
+    <ion-title>Búsqueda</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true">
-  <ion-header collapse="condense">
-    <ion-toolbar>
-      <ion-title size="large">search</ion-title>
-    </ion-toolbar>
-  </ion-header>
+<ion-content class="ion-padding">
+
+  <!-- Input búsqueda -->
+  <ion-searchbar [(ngModel)]="query" (ionInput)="onSearchChange()" placeholder="Buscar libros..."
+    debounce="0"></ion-searchbar>
+
+  <!-- Loading -->
+  <ion-spinner *ngIf="loading"></ion-spinner>
+
+  <!-- Sin resultados -->
+  <ion-text color="medium" *ngIf="!loading && noResults">
+    No se encontraron resultados.
+  </ion-text>
+
+  <!-- Resultados -->
+  <ion-list *ngIf="!loading">
+    <ion-item *ngFor="let book of results" button (click)="openDetail(book)">
+      <ion-thumbnail slot="start">
+        <img [src]="getCoverUrl(book.cover_i)" (error)="onImageError($event)" />
+      </ion-thumbnail>
+
+      <ion-label>
+        <h2>{{ book.title }}</h2>
+        <p *ngIf="book.author_name?.length">
+          {{ book.author_name[0] }}
+        </p>
+        <p *ngIf="!book.author_name?.length">
+          Autor desconocido
+        </p>
+      </ion-label>
+    </ion-item>
+  </ion-list>
+
 </ion-content>

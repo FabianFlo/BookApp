@@ -83,14 +83,28 @@
     <!-- Lista -->
     <div *ngIf="!loading && !error && !noResults">
 
-      <ion-card class="book-card" *ngFor="let book of books" [routerLink]="['/book', book.key]">
-        <ion-card-content>
-          <h3 class="book-title">{{ book.title }}</h3>
-          <p class="book-meta" *ngIf="book.first_publish_year">
-            Año: {{ book.first_publish_year }}
-          </p>
-        </ion-card-content>
-      </ion-card>
+      <ion-list class="books-list">
+
+        <ion-item *ngFor="let book of books" button [routerLink]="['/book', book.key]">
+
+          <ion-thumbnail slot="start">
+            <img [src]="getCoverUrl(book.cover_id)" (error)="onImageError($event)" />
+          </ion-thumbnail>
+
+          <ion-label>
+            <h2 class="book-title">
+              {{ book.title }}
+            </h2>
+
+            <p class="book-author" *ngIf="book.authors?.length">
+              {{ book.authors[0]?.name }}
+            </p>
+
+          </ion-label>
+
+        </ion-item>
+
+      </ion-list>
 
       <!-- PAGINACIÓN -->
       <div class="pagination-wrapper" *ngIf="totalPages > 1">

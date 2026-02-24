@@ -5,6 +5,8 @@ import { ApiService } from 'src/app/core/services/api.service';
 import { DatabaseService } from 'src/app/core/services/database.service';
 import { Book } from 'src/app/core/models/book.model';
 import { RouterModule } from '@angular/router';
+import { from } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 @Component({
   selector: 'app-genres',
@@ -14,8 +16,10 @@ import { RouterModule } from '@angular/router';
   styleUrls: ['./genres.page.scss'],
 })
 export class GenresPage implements OnInit {
+
   selectedGenre: string | null = null;
   books: Book[] = [];
+
   loading = false;
   error = false;
   noResults = false;
@@ -36,13 +40,22 @@ export class GenresPage implements OnInit {
   constructor(
     private apiService: ApiService,
     private db: DatabaseService
-  ) {}
+  ) { }
 
   async ngOnInit() {
     await this.db.init();
+    this.updateConnectionStatus();
+
+    window.addEventListener('online', () => this.updateConnectionStatus());
+    window.addEventListener('offline', () => this.updateConnectionStatus());
+  }
+
+  private updateConnectionStatus() {
     this.isOffline = !navigator.onLine;
-    window.addEventListener('online',  () => { this.isOffline = false; });
-    window.addEventListener('offline', () => { this.isOffline = true; });
+  }
+
+  private hasConnection(): boolean {
+    return navigator.onLine;
   }
 
   get currentGenreLabel(): string {
@@ -67,39 +80,51 @@ export class GenresPage implements OnInit {
 
   loadBooks() {
     if (!this.selectedGenre) return;
+
     this.loading = true;
     this.error = false;
     this.noResults = false;
     this.noCache = false;
 
-    if (navigator.onLine) {
-      const offset = (this.currentPage - 1) * this.limit;
-      this.apiService.getBooksByGenre(this.selectedGenre, this.limit, offset).subscribe({
-        next: async (response: any) => {
-          const works = response.works || [];
-          this.books = works;
-          this.noResults = works.length === 0;
-          const total = response.work_count || 200;
-          this.totalPages = Math.ceil(total / this.limit);
-          this.loading = false;
-          // Guardar en SQLite
-          await this.db.upsertCachedBooks(
-            this.selectedGenre!,
-            this.currentPage,
-            JSON.stringify({ works, work_count: total })
-          );
-        },
-        error: async () => {
-          await this.loadFromCache();
-        }
-      });
-    } else {
+    //  Si NO hay conexión → ir directo a cache
+    if (!this.hasConnection()) {
       this.loadFromCache();
+      return;
     }
+
+    const offset = (this.currentPage - 1) * this.limit;
+
+    this.apiService.getBooksByGenre(this.selectedGenre, this.limit, offset)
+      .pipe(
+        catchError(() => {
+          return from(this.loadFromCache());
+        })
+      )
+      .subscribe(async (response: any) => {
+
+        // Si viene desde cache no hacemos nada más
+        if (!response?.works) return;
+
+        const works = response.works || [];
+        this.books = works;
+        this.noResults = works.length === 0;
+
+        const total = response.work_count || 200;
+        this.totalPages = Math.ceil(total / this.limit);
+
+        await this.db.upsertCachedBooks(
+          this.selectedGenre!,
+          this.currentPage,
+          JSON.stringify({ works, work_count: total })
+        );
+
+        this.loading = false;
+      });
   }
 
   private async loadFromCache() {
     const cached = await this.db.getCachedBooks(this.selectedGenre!, this.currentPage);
+
     if (cached) {
       const data = JSON.parse(cached);
       this.books = data.works ?? [];
@@ -110,6 +135,7 @@ export class GenresPage implements OnInit {
       this.noCache = true;
       this.noResults = true;
     }
+
     this.loading = false;
   }
 
@@ -124,5 +150,16 @@ export class GenresPage implements OnInit {
     const start = Math.max(1, this.currentPage - 2);
     const end = Math.min(this.totalPages, start + max - 1);
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }
+  getCoverUrl(coverId: number | null | undefined) {
+    if (!coverId || !navigator.onLine) {
+      return 'assets/no-cover.png';
+    }
+
+    return `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
+  }
+
+  onImageError(event: any) {
+    event.target.src = 'assets/no-cover.png';
   }
 }
