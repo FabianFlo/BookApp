@@ -5,6 +5,8 @@ import { ActivatedRoute } from '@angular/router';
 import { ApiService } from 'src/app/core/services/api.service';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
+import { DatabaseService } from 'src/app/core/services/database.service';
+
 
 @Component({
   selector: 'app-book-detail',
@@ -27,8 +29,9 @@ export class BookDetailPage implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private apiService: ApiService
-  ) {}
+    private apiService: ApiService,
+    private db: DatabaseService
+  ) { }
 
   ngOnInit() {
     const workKey = this.route.snapshot.paramMap.get('key');
@@ -36,27 +39,28 @@ export class BookDetailPage implements OnInit {
   }
 
   loadBook(workKey: string) {
+
     this.loading = true;
     this.error = false;
     this.imageLoaded = false;
 
     this.apiService.getBookDetail(workKey).pipe(
+
       switchMap((work: any) => {
+
         this.book = work;
 
-        // Subjects relevantes (máximo 8 para UI)
         this.subjects = Array.isArray(work?.subjects)
           ? work.subjects.slice(0, 8)
           : [];
 
-        // Autores -> resolver nombres
         const authorKeys: string[] = (work?.authors || [])
           .map((a: any) => a?.author?.key)
           .filter(Boolean);
 
         if (authorKeys.length === 0) {
           this.authorNames = [];
-          return of(work);
+          return of({ work, authorNames: [] });
         }
 
         return forkJoin(
@@ -67,17 +71,51 @@ export class BookDetailPage implements OnInit {
             )
           )
         ).pipe(
-          map((names: string[]) => {
-            this.authorNames = names;
-            return work;
-          })
+          map((names: string[]) => ({
+            work,
+            authorNames: names
+          }))
         );
       }),
-      catchError(() => {
+
+      switchMap(async ({ work, authorNames }) => {
+
+        this.authorNames = authorNames;
+
+        // 🔥 Guardar en cache
+        try {
+          await this.db.upsertCachedBookDetail(
+            workKey,
+            JSON.stringify({
+              work,
+              authorNames,
+              subjects: this.subjects
+            })
+          );
+        } catch (e) {
+          console.warn('No se pudo guardar cache detalle', e);
+        }
+
+        return true;
+      }),
+
+      catchError(async () => {
+
+        // 🔥 Si falla API → intentar cache
+        const cached = await this.db.getCachedBookDetail(workKey);
+
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          this.book = parsed.work;
+          this.authorNames = parsed.authorNames || [];
+          this.subjects = parsed.subjects || [];
+          return true;
+        }
+
         this.error = true;
-        this.loading = false;
-        return of(null);
+        return false;
       })
+
     ).subscribe({
       next: () => {
         this.loading = false;
