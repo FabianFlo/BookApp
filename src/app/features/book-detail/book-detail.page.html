@@ -1,9 +1,19 @@
 <ion-header>
   <ion-toolbar>
+
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/tabs/genres"></ion-back-button>
     </ion-buttons>
+
     <ion-title>Detalle</ion-title>
+
+    <!-- Botón elegante en el toolbar -->
+    <ion-buttons slot="end" *ngIf="!loading && !error && book">
+      <ion-button fill="clear" (click)="openAddToListModal()">
+        <ion-icon name="bookmark-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+
   </ion-toolbar>
 </ion-header>
 
@@ -27,37 +37,75 @@
     <!-- Portada -->
     <div style="margin-top: 5%;" class="cover-wrapper" *ngIf="coverUrl">
       <div class="cover-skeleton" *ngIf="!imageLoaded"></div>
-
       <img
         [src]="coverUrl"
         alt="Portada"
         loading="lazy"
         (load)="onImageLoad()"
+        (error)="onImageError()"
         [class.loaded]="imageLoaded"
       />
     </div>
 
     <h1 class="book-title">{{ book.title }}</h1>
 
-    <!-- Autores reales -->
     <div class="book-meta-group">
       <div class="book-meta" *ngIf="authorNames.length > 0">
         <strong>Autor(es):</strong> {{ authorNames.join(', ') }}
       </div>
-
       <div class="book-meta">
         <strong>Publicado:</strong> {{ publishInfo }}
       </div>
     </div>
 
-    <!-- Descripción -->
     <div class="book-description">
       <h3>Descripción</h3>
       <p>{{ description }}</p>
     </div>
 
-    <!-- (Mañana) Agregar a listas + evitar duplicados -->
-    <!-- Aquí irá el botón y lógica con SQLite -->
   </div>
 
 </ion-content>
+
+<!-- Modal: Agregar a lista -->
+<ion-modal [isOpen]="showListModal" (didDismiss)="showListModal = false">
+  <ng-template>
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Agregar a lista</ion-title>
+        <ion-buttons slot="end">
+          <ion-button (click)="showListModal = false">
+            <ion-icon name="close"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content class="ion-padding">
+
+      <div *ngIf="userLists.length === 0" class="empty-lists">
+        <ion-icon name="list-outline" size="large" color="medium"></ion-icon>
+        <p>No tienes listas creadas.<br>Ve a <strong>Mis Listas</strong> para crear una.</p>
+      </div>
+
+      <ion-list *ngIf="userLists.length > 0">
+        <ion-item
+          *ngFor="let list of userLists"
+          button
+          (click)="addToList(list.id)"
+          [detail]="false"
+        >
+          <ion-icon name="list-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>{{ list.name }}</ion-label>
+          <ion-icon
+            *ngIf="bookInLists[list.id]"
+            name="checkmark-circle"
+            slot="end"
+            color="success"
+          ></ion-icon>
+        </ion-item>
+      </ion-list>
+
+    </ion-content>
+  </ng-template>
+</ion-modal>

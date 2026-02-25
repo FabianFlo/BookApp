@@ -103,3 +103,13 @@ ion-toolbar {
     --background: #3f494c;
     --color: white;
 }
+
+/* Agregar al scss existente de book-detail */
+
+.add-to-list-wrapper {
+  padding: 8px 16px 0;
+
+  ion-button {
+    --border-radius: 8px;
+  }
+}

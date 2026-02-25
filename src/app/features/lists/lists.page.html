@@ -1,13 +1,101 @@
 <ion-header [translucent]="true">
   <ion-toolbar>
-    <ion-title>lists</ion-title>
+    <ion-title size="large">Mis Listas</ion-title>
+
+    <ion-buttons slot="end">
+      <ion-button (click)="createList()" [disabled]="!canCreateList">
+        <ion-icon name="add-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
 <ion-content [fullscreen]="true">
-  <ion-header collapse="condense">
-    <ion-toolbar>
-      <ion-title size="large">lists</ion-title>
-    </ion-toolbar>
-  </ion-header>
+
+  <!-- Loader -->
+  <div *ngIf="loading" class="center-loader">
+    <ion-spinner name="crescent"></ion-spinner>
+  </div>
+
+  <!-- Estado vacío -->
+  <div *ngIf="!loading && lists.length === 0" class="empty-state" style="margin: 5%">
+    <h2>Sin listas aún</h2>
+    <p>Crea tu primera lista tocando el botón +</p>
+    <ion-note color="medium">Máximo {{ 3 }} listas personalizadas</ion-note>
+  </div>
+
+  <!-- Listas -->
+  <div *ngIf="!loading && lists.length > 0" class="lists-container">
+
+    <div class="lists-counter ion-padding-horizontal">
+      <br>
+      <ion-note color="medium">{{ lists.length }} de 3 listas creadas</ion-note>
+    </div>
+
+    <ion-accordion-group expand="inset">
+
+      <ion-accordion *ngFor="let list of lists" [value]="list.id.toString()">
+
+        <!-- Header -->
+        <ion-item slot="header" lines="none">
+          <ion-icon name="list-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h2>{{ list.name }}</h2>
+            <p>{{ list.books.length }} libro{{ list.books.length !== 1 ? 's' : '' }}</p>
+          </ion-label>
+          <ion-button fill="clear" slot="end"
+            (click)="$event.stopPropagation(); openListOptions(list)">
+            <ion-icon name="ellipsis-vertical-outline" slot="icon-only" color="medium"></ion-icon>
+          </ion-button>
+        </ion-item>
+
+        <!-- Contenido -->
+        <div slot="content" class="ion-padding-top">
+
+          <div *ngIf="list.books.length === 0" class="empty-list-books ion-padding">
+            <ion-note color="medium">Esta lista no tiene libros todavía.</ion-note>
+          </div>
+
+          <ion-list *ngIf="list.books.length > 0" lines="inset">
+
+            <ion-item
+              *ngFor="let book of list.books"
+              button
+              [detail]="false"
+              (click)="openDetail(book)"
+            >
+              <ion-thumbnail slot="start" class="book-thumb">
+                <ng-container *ngIf="coverMap[book.cover_id]; else noCover">
+                  <img [src]="coverMap[book.cover_id]" alt="portada" />
+                </ng-container>
+                <ng-template #noCover>
+                  <div class="no-cover-thumb">
+                    <ion-icon name="book-outline" color="medium"></ion-icon>
+                  </div>
+                </ng-template>
+              </ion-thumbnail>
+
+              <ion-label>
+                <h3>{{ book.title }}</h3>
+                <p *ngIf="book.author">{{ book.author }}</p>
+                <p *ngIf="book.first_publish_year">{{ book.first_publish_year }}</p>
+              </ion-label>
+
+              <ion-button fill="clear" slot="end" color="danger"
+                (click)="$event.stopPropagation(); confirmRemoveBook(list, book)">
+                <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+              </ion-button>
+
+            </ion-item>
+
+          </ion-list>
+
+        </div>
+
+      </ion-accordion>
+
+    </ion-accordion-group>
+
+  </div>
+
 </ion-content>

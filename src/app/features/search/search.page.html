@@ -7,8 +7,12 @@
 <ion-content class="ion-padding">
 
   <!-- Input búsqueda -->
-  <ion-searchbar [(ngModel)]="query" (ionInput)="onSearchChange()" placeholder="Buscar libros..."
-    debounce="0"></ion-searchbar>
+  <ion-searchbar
+    [(ngModel)]="query"
+    (ionInput)="onSearchChange()"
+    placeholder="Buscar libros..."
+    debounce="0">
+  </ion-searchbar>
 
   <!-- Loading -->
   <ion-spinner *ngIf="loading"></ion-spinner>
@@ -21,19 +25,24 @@
   <!-- Resultados -->
   <ion-list *ngIf="!loading">
     <ion-item *ngFor="let book of results" button (click)="openDetail(book)">
+
       <ion-thumbnail slot="start">
-        <img [src]="getCoverUrl(book.cover_i)" (error)="onImageError($event)" />
+        <div class="cover-wrapper">
+          <div class="cover-skeleton" *ngIf="!book._coverLoaded"></div>
+          <img
+            [src]="book._coverUrl"
+            [class.cover-visible]="book._coverLoaded"
+            (load)="book._coverLoaded = true"
+            (error)="onImageError($event); book._coverLoaded = true"
+          />
+        </div>
       </ion-thumbnail>
 
       <ion-label>
         <h2>{{ book.title }}</h2>
-        <p *ngIf="book.author_name?.length">
-          {{ book.author_name[0] }}
-        </p>
-        <p *ngIf="!book.author_name?.length">
-          Autor desconocido
-        </p>
+        <p>{{ getFirstAuthor(book) }}</p>
       </ion-label>
+
     </ion-item>
   </ion-list>
 

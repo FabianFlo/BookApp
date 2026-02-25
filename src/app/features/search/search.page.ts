@@ -1,11 +1,22 @@
 import { Component } from '@angular/core';
 import { ApiService } from 'src/app/core/services/api.service';
 import { DatabaseService } from 'src/app/core/services/database.service';
+import { CoverService } from 'src/app/core/services/cover.service';
 import { IonicModule } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { catchError, from } from 'rxjs';
 import { Router } from '@angular/router';
+
+type SearchResultWithCover = {
+  key: string;
+  title: string;
+  author_name?: string[];
+  cover_i?: number;
+  _coverUrl?: string;
+  _coverLoaded?: boolean;
+  [key: string]: any;
+};
 
 @Component({
   selector: 'app-search',
@@ -17,7 +28,7 @@ import { Router } from '@angular/router';
 export class SearchPage {
 
   query: string = '';
-  results: any[] = [];
+  results: SearchResultWithCover[] = [];
 
   loading = false;
   noResults = false;
@@ -29,23 +40,17 @@ export class SearchPage {
   constructor(
     private api: ApiService,
     private db: DatabaseService,
-    private router: Router
+    private router: Router,
+    private coverService: CoverService
   ) { }
 
   openDetail(book: any) {
     if (!book?.key) return;
-
-    // PASAMOS EL KEY TAL CUAL VIENE: "/works/OL15079937W"
     this.router.navigate(['/book', book.key]);
   }
 
-  // ─────────────────────────────
-  // DEBOUNCE
-  // ─────────────────────────────
   onSearchChange() {
-
     clearTimeout(this.searchTimeout);
-
     const q = this.query.trim();
 
     if (!q) {
@@ -62,11 +67,7 @@ export class SearchPage {
     }, 500);
   }
 
-  // ─────────────────────────────
-  // SEARCH
-  // ─────────────────────────────
   async search() {
-
     const q = this.query.trim();
     if (!q) return;
 
@@ -74,7 +75,6 @@ export class SearchPage {
     this.noResults = false;
     this.isOffline = !navigator.onLine;
 
-    // 🔴 OFFLINE
     if (!navigator.onLine) {
       await this.searchOffline();
       return;
@@ -85,7 +85,6 @@ export class SearchPage {
         catchError(() => from(this.searchOffline()))
       )
       .subscribe(async (res: any) => {
-
         if (!res?.docs) {
           this.loading = false;
           return;
@@ -100,28 +99,37 @@ export class SearchPage {
           JSON.stringify(res.docs)
         );
 
+        await this.hydrateCovers();
+
         this.loading = false;
       });
   }
 
   private async searchOffline() {
-
     const results = await this.db.searchOfflineSimilar(this.query);
-
     this.results = results;
     this.noResults = results.length === 0;
+
+    await this.hydrateCovers();
+
     this.loading = false;
   }
 
-  // ─────────────────────────────
-  // IMÁGENES
-  // ─────────────────────────────
-  getCoverUrl(coverId: number | null) {
-    if (!coverId || !navigator.onLine) {
-      return 'assets/no-cover.png';
-    }
+  async hydrateCovers() {
+    this.results.forEach(book => {
+      book._coverLoaded = false;
+      book._coverUrl = undefined;
+    });
 
-    return `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
+    const tasks = this.results.map(async (book) => {
+      book._coverUrl = await this.coverService.getCoverUrl(book.cover_i ?? null);
+    });
+
+    await Promise.all(tasks);
+  }
+
+  getFirstAuthor(book: SearchResultWithCover): string {
+    return book.author_name?.[0] ?? 'Autor desconocido';
   }
 
   onImageError(event: any) {

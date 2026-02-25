@@ -99,7 +99,7 @@ export class DatabaseService {
     `);
 
         await this.db.execute(`
-      CREATE TABLE IF NOT EXISTS list_books (
+        CREATE TABLE IF NOT EXISTS list_books (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         list_id INTEGER NOT NULL,
         work_key TEXT NOT NULL,
@@ -110,7 +110,7 @@ export class DatabaseService {
         added_at INTEGER NOT NULL,
         FOREIGN KEY (list_id) REFERENCES custom_lists(id) ON DELETE CASCADE,
         UNIQUE(list_id, work_key)
-      );
+        );
     `);
         await this.db.execute(`
   CREATE TABLE IF NOT EXISTS cached_search (
@@ -121,6 +121,14 @@ export class DatabaseService {
     PRIMARY KEY (query, page)
   );
 `);
+
+        await this.db.execute(`
+            CREATE TABLE IF NOT EXISTS cached_covers (
+            cover_id INTEGER PRIMARY KEY,
+            data_base64 TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+            );
+        `);
     }
 
     // ─── CACHE GÉNEROS ────────────────────────────────────────────────────────
@@ -247,6 +255,9 @@ export class DatabaseService {
         return (res.values as any) ?? [];
     }
 
+    // ─── LIBROS EN LISTAS ─────────────────────────────────────────────────────────
+    // REEMPLAZA el método addBookToList existente con este:
+
     async addBookToList(
         listId: number,
         book: {
@@ -258,28 +269,29 @@ export class DatabaseService {
         }
     ): Promise<'added' | 'duplicate'> {
         await this.ensureReady();
-        try {
-            await this.db.run(
-                `
-        INSERT INTO list_books (list_id, work_key, title, author, cover_id, first_publish_year, added_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        `,
-                [
-                    listId,
-                    book.work_key,
-                    book.title,
-                    book.author ?? null,
-                    book.cover_id ?? null,
-                    book.first_publish_year ?? null,
-                    Date.now(),
-                ]
-            );
-            return 'added';
-        } catch {
-            return 'duplicate';
-        }
-    }
 
+        // Verificar primero si ya existe (evita el UNIQUE constraint error)
+        const exists = await this.isBookInList(listId, book.work_key);
+        if (exists) return 'duplicate';
+
+        await this.db.run(
+            `
+      INSERT OR IGNORE INTO list_books (list_id, work_key, title, author, cover_id, first_publish_year, added_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+            [
+                listId,
+                book.work_key,
+                book.title,
+                book.author ?? null,
+                book.cover_id ?? null,
+                book.first_publish_year ?? null,
+                Date.now(),
+            ]
+        );
+
+        return 'added';
+    }
     async removeBookFromList(listId: number, workKey: string): Promise<void> {
         await this.ensureReady();
         await this.db.run(`DELETE FROM list_books WHERE list_id=? AND work_key=?`, [
@@ -299,72 +311,96 @@ export class DatabaseService {
 
     // ─── CACHE BÚSQUEDA ─────────────────────────────────────────────
 
-async upsertSearchCache(query: string, page: number, data: string): Promise<void> {
-    await this.ensureReady();
+    async upsertSearchCache(query: string, page: number, data: string): Promise<void> {
+        await this.ensureReady();
 
-    const normalizedQuery = query.trim().toLowerCase();
-    const now = Date.now();
+        const normalizedQuery = query.trim().toLowerCase();
+        const now = Date.now();
 
-    await this.db.run(
-        `
+        await this.db.run(
+            `
         INSERT INTO cached_search (query, page, data, created_at)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(query, page) DO UPDATE SET
           data = excluded.data,
           created_at = excluded.created_at;
         `,
-        [normalizedQuery, page, data, now]
-    );
-}
+            [normalizedQuery, page, data, now]
+        );
+    }
 
-async getSearchCache(query: string, page: number): Promise<string | null> {
-    await this.ensureReady();
+    async getSearchCache(query: string, page: number): Promise<string | null> {
+        await this.ensureReady();
 
-    const normalizedQuery = query.trim().toLowerCase();
+        const normalizedQuery = query.trim().toLowerCase();
 
-    const res = await this.db.query(
-        `SELECT data FROM cached_search WHERE query = ? AND page = ? LIMIT 1`,
-        [normalizedQuery, page]
-    );
+        const res = await this.db.query(
+            `SELECT data FROM cached_search WHERE query = ? AND page = ? LIMIT 1`,
+            [normalizedQuery, page]
+        );
 
-    return (res.values?.[0] as any)?.data ?? null;
-}
+        return (res.values?.[0] as any)?.data ?? null;
+    }
 
-// 🔥 BÚSQUEDA POR SIMILITUD OFFLINE
-async searchOfflineSimilar(query: string): Promise<any[]> {
-    await this.ensureReady();
+    //  BÚSQUEDA POR SIMILITUD OFFLINE
+    async searchOfflineSimilar(query: string): Promise<any[]> {
+        await this.ensureReady();
 
-    const normalizedQuery = query.trim().toLowerCase();
+        const normalizedQuery = query.trim().toLowerCase();
 
-    const res = await this.db.query(
-        `
+        const res = await this.db.query(
+            `
         SELECT data
         FROM cached_search
         WHERE query LIKE ?
         ORDER BY created_at DESC
         `,
-        [`%${normalizedQuery}%`]
-    );
+            [`%${normalizedQuery}%`]
+        );
 
-    if (!res.values?.length) return [];
+        if (!res.values?.length) return [];
 
-    const merged: any[] = [];
+        const merged: any[] = [];
 
-    for (const row of res.values) {
-        try {
-            const parsed = JSON.parse(row.data);
-            if (Array.isArray(parsed)) {
-                merged.push(...parsed);
-            }
-        } catch { }
+        for (const row of res.values) {
+            try {
+                const parsed = JSON.parse(row.data);
+                if (Array.isArray(parsed)) {
+                    merged.push(...parsed);
+                }
+            } catch { }
+        }
+
+        // eliminar duplicados por key
+        const uniqueMap = new Map();
+        merged.forEach(book => {
+            if (book.key) uniqueMap.set(book.key, book);
+        });
+
+        return Array.from(uniqueMap.values());
     }
 
-    // eliminar duplicados por key
-    const uniqueMap = new Map();
-    merged.forEach(book => {
-        if (book.key) uniqueMap.set(book.key, book);
-    });
 
-    return Array.from(uniqueMap.values());
-}
+    async upsertCover(coverId: number, base64: string): Promise<void> {
+        await this.ensureReady();
+        await this.db.run(
+            `
+    INSERT INTO cached_covers (cover_id, data_base64, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(cover_id) DO UPDATE SET
+      data_base64 = excluded.data_base64,
+      updated_at = excluded.updated_at;
+    `,
+            [coverId, base64, Date.now()]
+        );
+    }
+
+    async getCover(coverId: number): Promise<string | null> {
+        await this.ensureReady();
+        const res = await this.db.query(
+            `SELECT data_base64 FROM cached_covers WHERE cover_id=? LIMIT 1`,
+            [coverId]
+        );
+        return (res.values?.[0] as any)?.data_base64 ?? null;
+    }
 }

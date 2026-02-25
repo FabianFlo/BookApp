@@ -1,0 +1,75 @@
+# book-app
+
+Aplicación móvil de consulta y gestión de libros construida con **Ionic · Angular · Capacitor**, consumiendo la API pública de [Open Library](https://openlibrary.org/developers/api).
+
+---
+
+## Inicio rápido
+
+**Requisitos:** Node.js v22+ y el CLI de Ionic.
+
+```bash
+npm install -g @ionic/cli
+```
+
+```bash
+git clone https://github.com/FabianFlo/BookApp.git
+cd book-app
+npm install
+ionic serve
+```
+
+App disponible en `http://localhost:8100`.
+
+> **Nota:** No uses modo incógnito — SQLite necesita acceso al almacenamiento local del navegador.
+
+---
+
+
+## Estructura
+
+```
+src/app/
+├── core/
+│   ├── models/          # Interfaces de datos
+│   └── services/
+│       ├── api.service.ts        # Open Library API
+│       ├── database.service.ts   # SQLite (offline)
+│       └── cover.service.ts      # Cache de portadas
+└── features/
+    ├── genres/           # Géneros + listado paginado
+    ├── search/           # Búsqueda general
+    ├── book-detail/      # Detalle del libro
+    └── lists/            # Listas personalizadas
+```
+
+---
+
+##  Funcionalidades
+
+| Módulo | Destacado |
+|---|---|
+| **Géneros** | 4 géneros paginados · cache offline por página |
+| **Búsqueda** | Texto libre · fallback offline desde caché |
+| **Detalle** | Portada · autores · descripción · agregar a lista |
+| **Listas** | Hasta 3 listas · crear / renombrar / eliminar · sin duplicados |
+| **Offline** | SQLite para libros, búsquedas y portadas en base64 |
+
+---
+
+## Decisiones técnicas
+
+| Decisión | Por qué |
+
+| `jeep-sqlite` + `sql-wasm.wasm` en assets | SQLite funciona igual en web y nativo sin cambiar código |
+| Cache-first en portadas | Imágenes disponibles sin conexión guardadas en base64 |
+| `ionViewWillEnter` en listas | Ionic cachea los tabs; esto fuerza refresco al volver a la vista |
+| Carga secuencial de portadas | Evita saturar SQLite con lecturas simultáneas y race conditions |
+| `INSERT OR IGNORE` al agregar libro | `jeep-sqlite` no propaga el UNIQUE constraint como excepción en web |
+
+---
+
+## Limitaciones
+
+- Open Library puede responder lento o con datos incompletos en algunos géneros
+- El almacenamiento SQLite en web usa IndexedDB; puede perderse si el navegador limpia el sitio

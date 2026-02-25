@@ -7,6 +7,12 @@ import { Book } from 'src/app/core/models/book.model';
 import { RouterModule } from '@angular/router';
 import { from } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { CoverService } from 'src/app/core/services/cover.service';
+
+type BookWithCover = Book & {
+  _coverUrl?: string;
+  _coverLoaded?: boolean;
+};
 
 @Component({
   selector: 'app-genres',
@@ -18,7 +24,7 @@ import { catchError } from 'rxjs/operators';
 export class GenresPage implements OnInit {
 
   selectedGenre: string | null = null;
-  books: Book[] = [];
+  books: BookWithCover[] = [];
 
   loading = false;
   error = false;
@@ -39,7 +45,8 @@ export class GenresPage implements OnInit {
 
   constructor(
     private apiService: ApiService,
-    private db: DatabaseService
+    private db: DatabaseService,
+    private coverService: CoverService
   ) { }
 
   async ngOnInit() {
@@ -86,7 +93,6 @@ export class GenresPage implements OnInit {
     this.noResults = false;
     this.noCache = false;
 
-    //  Si NO hay conexión → ir directo a cache
     if (!this.hasConnection()) {
       this.loadFromCache();
       return;
@@ -96,18 +102,17 @@ export class GenresPage implements OnInit {
 
     this.apiService.getBooksByGenre(this.selectedGenre, this.limit, offset)
       .pipe(
-        catchError(() => {
-          return from(this.loadFromCache());
-        })
+        catchError(() => from(this.loadFromCache()))
       )
       .subscribe(async (response: any) => {
 
-        // Si viene desde cache no hacemos nada más
-        if (!response?.works) return;
+        if (!response?.works) {
+          this.loading = false;
+          return;
+        }
 
-        const works = response.works || [];
+        const works: BookWithCover[] = response.works || [];
         this.books = works;
-        this.noResults = works.length === 0;
 
         const total = response.work_count || 200;
         this.totalPages = Math.ceil(total / this.limit);
@@ -118,6 +123,9 @@ export class GenresPage implements OnInit {
           JSON.stringify({ works, work_count: total })
         );
 
+        await this.hydrateCovers();
+
+        this.noResults = works.length === 0;
         this.loading = false;
       });
   }
@@ -136,7 +144,23 @@ export class GenresPage implements OnInit {
       this.noResults = true;
     }
 
+    await this.hydrateCovers();
     this.loading = false;
+  }
+
+
+  async hydrateCovers() {
+    // Resetear estado antes de cargar
+    this.books.forEach(book => {
+      book._coverLoaded = false;
+      book._coverUrl = undefined;
+    });
+
+    const tasks = this.books.map(async (book) => {
+      book._coverUrl = await this.coverService.getCoverUrl(book.cover_id ?? null);
+    });
+
+    await Promise.all(tasks);
   }
 
   goToPage(page: number) {
@@ -150,13 +174,6 @@ export class GenresPage implements OnInit {
     const start = Math.max(1, this.currentPage - 2);
     const end = Math.min(this.totalPages, start + max - 1);
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-  }
-  getCoverUrl(coverId: number | null | undefined) {
-    if (!coverId || !navigator.onLine) {
-      return 'assets/no-cover.png';
-    }
-
-    return `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
   }
 
   onImageError(event: any) {
